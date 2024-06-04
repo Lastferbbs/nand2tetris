@@ -1,0 +1,22 @@
+CHIP And16 {
+  IN a[16], b[16];
+  OUT out[16];
+
+  PARTS:
+    And(a=a[0], b=b[0], out=out[0]);  // Bitwise AND for bit 0
+    And(a=a[1], b=b[1], out=out[1]);  // Bitwise AND for bit 1
+    And(a=a[2], b=b[2], out=out[2]);  // Bitwise AND for bit 2
+    And(a=a[3], b=b[3], out=out[3]);  // Bitwise AND for bit 3
+    And(a=a[4], b=b[4], out=out[4]);  // Bitwise AND for bit 4
+    And(a=a[5], b=b[5], out=out[5]);  // Bitwise AND for bit 5
+    And(a=a[6], b=b[6], out=out[6]);  // Bitwise AND for bit 6
+    And(a=a[7], b=b[7], out=out[7]);  // Bitwise AND for bit 7
+    And(a=a[8], b=b[8], out=out[8]);  // Bitwise AND for bit 8
+    And(a=a[9], b=b[9], out=out[9]);  // Bitwise AND for bit 9
+    And(a=a[10], b=b[10], out=out[10]);  // Bitwise AND for bit 10
+    And(a=a[11], b=b[11], out=out[11]);  // Bitwise AND for bit 11
+    And(a=a[12], b=b[12], out=out[12]);  // Bitwise AND for bit 12
+    And(a=a[13], b=b[13], out=out[13]);  // Bitwise AND for bit 13
+    And(a=a[14], b=b[14], out=out[14]);  // Bitwise AND for bit 14
+    And(a=a[15], b=b[15], out=out[15]);  // Bitwise AND for bit 15
+}

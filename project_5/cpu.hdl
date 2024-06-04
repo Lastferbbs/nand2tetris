@@ -1,0 +1,130 @@
+// This file is part of www.nand2tetris.org
+// and the book "The Elements of Computing Systems"
+// by Nisan and Schocken, MIT Press.
+// File name: projects/5/CPU.hdl
+/**
+ * The Hack Central Processing unit (CPU).
+ * Parses the binary code in the instruction input and executes it according to the
+ * Hack machine language specification. In the case of a C-instruction, computes the
+ * function specified by the instruction. If the instruction specifies to read a memory
+ * value, the inM input is expected to contain this value. If the instruction specifies
+ * to write a value to the memory, sets the outM output to this value, sets the addressM
+ * output to the target address, and asserts the writeM output (when writeM = 0, any
+ * value may appear in outM).
+ * If the reset input is 0, computes the address of the next instruction and sets the
+ * pc output to that value. If the reset input is 1, sets pc to 0.
+ * Note: The outM and writeM outputs are combinational: they are affected by the
+ * instruction's execution during the current cycle. The addressM and pc outputs are
+ * clocked: although they are affected by the instruction's execution, they commit to
+ * their new values only in the next cycle.
+ */
+CHIP CPU {
+
+    IN  inM[16],         // M value input  (M = contents of RAM[A])
+        instruction[16], // Instruction for execution
+        reset;           // Signals whether to re-start the current
+                         // program (reset==1) or continue executing
+                         // the current program (reset==0).
+
+    OUT outM[16],        // M value output
+        writeM,          // Write to M? 
+        addressM[15],    // Address in data memory (of M)
+        pc[15];          // address of next instruction
+
+    PARTS:
+
+    Mux16(a=instruction , b=ALUout , sel=instruction[15] , out=instructionMux );
+    
+    // Co i czy w ogóle ładujemy do A register
+    Mux(a=false, b=true, sel=instruction[5], out=LoadtoRegAfromC);
+    Mux(a=true, b=LoadtoRegAfromC, sel=instruction[15], out=LoadToA);
+    Register(in=instructionMux , load=LoadToA, out=RegisterA, out[0..14]=addressM );
+
+    // Rejestr A albo rejestr w ramie
+    Mux(a=false, b=true, sel=instruction[15], out=MorRegA);
+    Mux(a=false, b=MorRegA, sel=instruction[12], out=MorRegAdecider);
+    Mux16(a=RegisterA, b=inM, sel=MorRegAdecider, out=MOrRegAoutput);
+
+    
+
+    // Czy piszemy do Memory
+    Mux(a=false, b=true, sel=instruction[3], out=LoadtoMemory);
+    Mux(a=false, b=LoadtoMemory, sel=instruction[15], out=writeM);
+
+    // Czy piszemy do D registry
+    Mux(a=false, b=true, sel=instruction[4], out=LoadtoRegD);
+    Mux(a=false, b=LoadtoRegD, sel=instruction[15], out=LoadToD);
+
+    // D register
+    Register(in=ALUout , load=LoadToD , out=RegD );
+
+
+
+    // Bity sterujące do ALU
+    Mux(a=true, b=instruction[11], sel=instruction[15], out=ALUbit6);
+    Mux(a=false, b=instruction[10], sel=instruction[15], out=ALUbit5);
+    Mux(a=false, b=instruction[9], sel=instruction[15], out=ALUbit4);
+    Mux(a=false, b=instruction[8], sel=instruction[15], out=ALUbit3);
+    Mux(a=true, b=instruction[7], sel=instruction[15], out=ALUbit2);
+    Mux(a=false, b=instruction[6], sel=instruction[15], out=ALUbit1);
+
+
+    // ALU
+    ALU(x=RegD , y=MOrRegAoutput , zx=ALUbit6 , nx=ALUbit5 , zy=ALUbit4 , ny=ALUbit3 , f=ALUbit2 , no=ALUbit1 , out=outM, out=ALUout , zr=zrout , ng=ngout );
+    
+
+    // PC - logika - czy jest instrukcja jump
+    Mux(a=false, b=true, sel=instruction[15], out=JumpOrARegister);
+    Or(a=instruction[2], b=instruction[1], out=FirstTwoJumpBits);
+    Or(a=FirstTwoJumpBits, b=instruction[0], out=JumpOrNot);
+    Mux(a=JumpOrARegister, b=JumpOrNot, sel=instruction[15], out=FinalJumpDecision);
+
+    //PC - logika jaki jump i czy warunek jest spełniony
+
+    DMux8Way(in=FinalJumpDecision , sel=instruction[0..2] , a=skip , b=JGT , c=JEQ , d=JGE , e=JLT , f=JNE , g=JLE , h=JMP );
+    
+    // Sprawdzenie JGT
+    Mux(a=JGT, b=false, sel=ngout, out=StepJmpJGT);
+    Mux(a=StepJmpJGT, b=false, sel=zrout, out=JmpJGT);
+
+    // Sprawdzenie JEQ
+    Mux(a=false, b=JEQ, sel=zrout, out=JmpJEQ);
+
+    // Sprawdzenie JGE
+    Mux(a=JGE, b=false, sel=ngout, out=JmpJGE);
+
+    // Sprawdzenie JLT
+    Mux(a=false, b=JLT, sel=ngout, out=JmpJLT);
+
+    // Sprawdzenie JNE
+    Mux(a=JNE, b=false, sel=zrout, out=JmpJNE);
+
+    // Sprawdzenie JLE
+    Mux(a=false, b=JLE, sel=ngout, out=StepJmpJLE);
+    Mux(a=StepJmpJLE, b=true, sel=zrout, out=Step2JmpJLE);
+    And(a=JLE, b=Step2JmpJLE, out=JmpJLE);
+
+    // Sprawdzanie JMP
+    And(a=instruction[0] , b=instruction[1] , out=StepJmpJMP );
+    And(a=StepJmpJMP , b=instruction[2], out=Step2JmpJMP );
+    And(a=JMP , b=Step2JmpJMP , out=JmpJMP );
+
+
+    // Finałowe sprawdzenie czy jump
+    Or(a=JmpJGT, b=JmpJEQ, out=step1);
+    Or(a=step1 , b=JmpJGE , out=step2 );
+    Or(a=step2 , b=JmpJLT , out=step3 );
+    Or(a=step3 , b=JmpJNE , out=step4 );
+    Or(a=step4 , b=JmpJLE , out=step5 );
+    Or(a=step5 , b=JmpJMP , out=JmpDecider );
+    
+    // Increment
+    Not(in=JmpDecider , out=IncDecider );
+    
+
+    // PC
+    PC(in=RegisterA , load=JmpDecider , inc=IncDecider , reset=reset , out[0..14]=pc );
+
+    
+    
+}
